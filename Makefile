@@ -4,16 +4,16 @@
 
 .PHONY: verify verify_all test nss dependencies clean
 
-all: nss
+all: dependencies verify nss
 
-verify: dependencies
+verify:
 	@echo $(CYAN)"# Verifying the HaCl* code (specialized for NSS)"$(NORMAL)
 	$(MAKE) -C specs Spec.Curve25519.fst-verify
 	$(MAKE) -C specs Spec.Chacha20.fst-verify
 	$(MAKE) verify -C code/curve25519
 	$(MAKE) verify -C code/salsa-family
 
-build: verify
+build:
 	@echo $(CYAN)"# Generating the HaCl* code (specialized for NSS)"$(NORMAL)
 	$(MAKE) nss-snapshot -C test
 	@touch build
