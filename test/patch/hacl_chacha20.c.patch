@@ -1,5 +1,5 @@
---- hacl_chacha20.c-old	2017-08-18 10:21:50.000000000 -0700
-+++ hacl_chacha20.c	2017-08-18 10:23:13.000000000 -0700
+--- Chacha20.c	2017-08-18 14:40:41.000000000 -0700
++++ hacl_chacha20.c	2017-08-18 14:45:45.000000000 -0700
 @@ -1,4 +1,18 @@
 -#include "Chacha20.h"
 +// Copyright 2016-2017 INRIA and Microsoft Corporation
@@ -20,3 +20,41 @@
  
  static void
  Hacl_Lib_LoadStore32_uint32s_from_le_bytes(uint32_t *output, uint8_t *input, uint32_t len)
+@@ -46,28 +60,28 @@
+   uint32_t sd = st[d];
+   uint32_t sa10 = st[a];
+   uint32_t sda = sd ^ sa10;
+-  st[d] = sda << (uint32_t )16 | sda >> (uint32_t )32 - (uint32_t )16;
++  st[d] = sda << (uint32_t )16 | sda >> ((uint32_t )32 - (uint32_t )16);
+   uint32_t sa0 = st[c];
+   uint32_t sb1 = st[d];
+   st[c] = sa0 + sb1;
+   uint32_t sd0 = st[b];
+   uint32_t sa11 = st[c];
+   uint32_t sda0 = sd0 ^ sa11;
+-  st[b] = sda0 << (uint32_t )12 | sda0 >> (uint32_t )32 - (uint32_t )12;
++  st[b] = sda0 << (uint32_t )12 | sda0 >> ((uint32_t )32 - (uint32_t )12);
+   uint32_t sa2 = st[a];
+   uint32_t sb2 = st[b];
+   st[a] = sa2 + sb2;
+   uint32_t sd1 = st[d];
+   uint32_t sa12 = st[a];
+   uint32_t sda1 = sd1 ^ sa12;
+-  st[d] = sda1 << (uint32_t )8 | sda1 >> (uint32_t )32 - (uint32_t )8;
++  st[d] = sda1 << (uint32_t )8 | sda1 >> ((uint32_t )32 - (uint32_t )8);
+   uint32_t sa3 = st[c];
+   uint32_t sb = st[d];
+   st[c] = sa3 + sb;
+   uint32_t sd2 = st[b];
+   uint32_t sa1 = st[c];
+   uint32_t sda2 = sd2 ^ sa1;
+-  st[b] = sda2 << (uint32_t )7 | sda2 >> (uint32_t )32 - (uint32_t )7;
++  st[b] = sda2 << (uint32_t )7 | sda2 >> ((uint32_t )32 - (uint32_t )7);
+ }
+ 
+ inline static void Hacl_Impl_Chacha20_double_round(uint32_t *st)
+@@ -243,4 +257,3 @@
+ {
+   Hacl_Impl_Chacha20_chacha20(output, plain, len, k, n1, ctr);
+ }
+-
