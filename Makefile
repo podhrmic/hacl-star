@@ -9,7 +9,9 @@ all: nss
 verify: dependencies
 	@echo $(CYAN)"# Verifying the HaCl* code (specialized for NSS)"$(NORMAL)
 	$(MAKE) -C specs Spec.Curve25519.fst-verify
+	$(MAKE) -C specs Spec.Chacha20.fst-verify
 	$(MAKE) verify -C code/curve25519
+	$(MAKE) verify -C code/salsa-family
 
 build: verify
 	@echo $(CYAN)"# Generating the HaCl* code (specialized for NSS)"$(NORMAL)

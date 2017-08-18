@@ -200,6 +200,10 @@ nss-production:
 	cp snapshot-gcc-unrolled/Curve25519.h ../snapshots/nss-production/hacl_curve25519_64.h
 	patch snapshot-gcc-unrolled/Curve25519.c < patch/hacl_curve25519_64.c.patch
 	cp snapshot-gcc-unrolled/Curve25519.c ../snapshots/nss-production/hacl_curve25519_64.c
+	#patch snapshot-gcc/Chacha20.c < patch/hacl_chacha20.c.patch
+	cp snapshot-gcc/Chacha20.c ../snapshots/nss-production/hacl_chacha20.c
+	#patch snapshot-gcc/Chacha20.h < patch/hacl_chacha20.h.patch
+	cp snapshot-gcc/Chacha20.h ../snapshots/nss-production/hacl_chacha20.h
 
 clean:
 	$(MAKE) -C ../code clean
