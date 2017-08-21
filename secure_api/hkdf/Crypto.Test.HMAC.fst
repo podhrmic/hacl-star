@@ -14,21 +14,6 @@ open Crypto.HMAC
 
 #set-options "--lax"
 
-val compare_and_print: Buffer.buffer UInt8.t -> Buffer.buffer UInt8.t -> UInt32.t -> St unit
-let compare_and_print b1 b2 len =
-//  C.print_string (C.string_of_literal s);
-    if Buffer.eqb b1 b2 len then
-      C.print_string (C.string_of_literal "SUCCESS!\n")
-    else
-    begin
-    C.print_string (C.string_of_literal "FAIL!\n");
-    C.print_string (C.string_of_literal "Expect: ");
-    C.print_bytes b1 len;
-    C.print_string (C.string_of_literal "Actual: ");
-    C.print_bytes b2 len
-    end
-
-
 (**
    Key =          0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b
                   0b0b0b0b                          (20 bytes)
@@ -82,17 +67,17 @@ let test_1 () =
     0xbeuy; 0x9duy; 0x91uy; 0x4euy; 0xebuy; 0x61uy; 0xf1uy; 0x70uy;
     0x2euy; 0x69uy; 0x6cuy; 0x20uy; 0x3auy; 0x12uy; 0x68uy; 0x54uy; ] in
 
-  C.print_string (C.string_of_literal "HMAC-SHA-256 Test 1: ");
   hmac SHA256 mac_sha256 key keylen data datalen;
-  compare_and_print expected_sha256 mac_sha256 32ul;
+  TestLib.compare_and_print (C.string_of_literal "HMAC-SHA-256 Test 1")
+    expected_sha256 mac_sha256 32ul;
 
-  C.print_string (C.string_of_literal "HMAC-SHA-384 Test 1: ");
   hmac SHA384 mac_sha384 key keylen data datalen;
-  compare_and_print expected_sha384 mac_sha384 48ul;
+  TestLib.compare_and_print (C.string_of_literal "HMAC-SHA-384 Test 1")
+    expected_sha384 mac_sha384 48ul;
 
-  C.print_string (C.string_of_literal "HMAC-SHA-512 Test 1: ");
   hmac SHA512 mac_sha512 key keylen data datalen;
-  compare_and_print expected_sha512 mac_sha512 64ul
+  TestLib.compare_and_print (C.string_of_literal "HMAC-SHA-512 Test 1")
+    expected_sha512 mac_sha512 64ul
 
 
 val main: unit -> St FStar.Int32.t

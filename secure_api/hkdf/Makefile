@@ -26,7 +26,7 @@ test-spec-hmac512.exe: Spec.Test.HMAC.SHA2_512.fst
 	tmp/Seq_Create.ml \
 	tmp/Spec_SHA2_512.ml \
 	tmp/Spec_HMAC_SHA2_512.ml \
-	TestLib.ml \
+	TestLibSeq.ml \
 	tmp/$(subst .,_,$(basename $<)).ml \
 	-o $@
 	./$@

@@ -419,17 +419,17 @@ let test7 =
 
 (** Run all test cases -- can take a while *)
 let main =
-  TestLib.compare_and_print "HMAC-SHA2-512 - Test 1"
+  TestLibSeq.compare_and_print "HMAC-SHA2-512 - Test 1"
     test1.mac (hmac test1.key test1.data);
-  TestLib.compare_and_print "HMAC-SHA2-512 - Test 2"
+  TestLibSeq.compare_and_print "HMAC-SHA2-512 - Test 2"
     test2.mac (hmac test2.key test2.data);
-  TestLib.compare_and_print "HMAC-SHA2-512 - Test 3"
+  TestLibSeq.compare_and_print "HMAC-SHA2-512 - Test 3"
     test3.mac (hmac test3.key test3.data);
-  TestLib.compare_and_print "HMAC-SHA2-512 - Test 4"
+  TestLibSeq.compare_and_print "HMAC-SHA2-512 - Test 4"
     test4.mac (hmac test4.key test4.data);
-  TestLib.compare_and_print "HMAC-SHA2-512 - Test 5"
+  TestLibSeq.compare_and_print "HMAC-SHA2-512 - Test 5"
     test5.mac (Seq.slice (hmac test5.key test5.data) 0 (128 / 8));
-  TestLib.compare_and_print "HMAC-SHA2-512 - Test 6"
+  TestLibSeq.compare_and_print "HMAC-SHA2-512 - Test 6"
     test6.mac (hmac test6.key test6.data);
-  TestLib.compare_and_print "HMAC-SHA2-512 - Test 7"
+  TestLibSeq.compare_and_print "HMAC-SHA2-512 - Test 7"
     test7.mac (hmac test7.key test7.data)

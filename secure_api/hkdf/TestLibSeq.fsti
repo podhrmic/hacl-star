@@ -1,4 +1,4 @@
-module TestLib
+module TestLibSeq
 
 open FStar.HyperStack.ST
 
