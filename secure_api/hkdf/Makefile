@@ -39,6 +39,11 @@ test-hmac.exe: tmp/out.krml
 	$(KRML) $< -tmpdir tmp -o $@ -no-prefix Crypto.Test.HMAC
 	./$@	
 
+test-hkdf.exe: Crypto.Test.HKDF.fst
+	$(KRML) ../test/test_hacl/Crypto.Indexing.fst Crypto.Test.HKDF.fst \
+	 -tmpdir tmp -o $@ -no-prefix Crypto.Test.HKDF
+	./$@
+
 test-hmac-ocaml.exe: Crypto.Test.HMAC.fst
 	mkdir -p tmp
 	$(FSTAR) --codegen OCaml --lax $(NOEXTRACT) --no_extract C --odir tmp $^

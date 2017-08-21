@@ -285,6 +285,7 @@ val hmac_core:
                              /\ live h1 data /\ live h0 data /\ modifies_1 mac h0 h1))
 //                             /\ (reveal_sbytes (as_seq h1 mac) == Spec.hmac_core (reveal_sbytes (as_seq h0 key)) (reveal_sbytes (as_seq h0 data)))))
 
+(* 2017.08.20 SZ: Not extracted to memset(); why? *)
 [@"substitute"]
 let zero_state (a:alg) (b:state a) =
   match a with

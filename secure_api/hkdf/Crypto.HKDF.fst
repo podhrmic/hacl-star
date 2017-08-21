@@ -55,13 +55,12 @@ private val hkdf_expand_inner:
   infolen : uint32_t {v infolen = length info} ->
   n       : uint32_t {v n <= pow2 8}->
   i       : uint32_t {v i <= v n} ->
-  Stack unit
+  StackInline unit
         (requires (fun h0 -> live h0 state /\ live h0 prk /\ live h0 info))
         (ensures  (fun h0 r h1 -> live h1 state /\ modifies_1 state h0 h1))
 
 [@"c_inline"]
 let rec hkdf_expand_inner a state prk prklen info infolen n i =
-  push_frame();
   (* Recompute the sizes and position of the intermediary objects *)
   (* Note: here we favour readability over efficiency *)
   let size_Ti  = HMAC.hash_size a in
@@ -86,10 +85,9 @@ let rec hkdf_expand_inner a state prk prklen info infolen n i =
     HMAC.hmac a ti prk prklen til (infolen +^ 1ul);
 
     (* Store the resulting block in T *)
-    Buffer.blit ti 0ul t 0ul size_Ti;
-
-    (* Recursive call *)
-    hkdf_expand_inner a state prk prklen info infolen n (i +^ 1ul)
+    Buffer.blit ti 0ul t 0ul size_Ti
+//    (* Recursive call *)
+//    hkdf_expand_inner a state prk prklen info infolen n (i +^ 1ul)
     end
   else if (i <=^ n) then
     begin
@@ -103,12 +101,10 @@ let rec hkdf_expand_inner a state prk prklen info infolen n i =
 
     (* Store the resulting block in T *)
     let pos = U32.mul_mod (i -^ 1ul) size_Ti in
-    Buffer.blit ti 0ul t pos size_Ti;
-
-    (* Recursive call *)
-    hkdf_expand_inner a state prk prklen info infolen n (i +^ 1ul)
-    end;
-  pop_frame()
+    Buffer.blit ti 0ul t pos size_Ti
+//    (* Recursive call *)
+//    hkdf_expand_inner a state prk prklen info infolen n (i +^ 1ul)
+    end
 
 
 (* Define HKDF Expand function *)
@@ -147,15 +143,14 @@ let hkdf_expand a okm prk prklen info infolen len =
 
   (* Call the inner expension function *)
   let inv (h:mem) (i:nat) : Type0 = True in
-  let f (i:uint32_t{0 <= U32.v i /\ v i < U32.v n}) :
+  let finish = n +^ 1ul in
+  let f (i:uint32_t{0 <= U32.v i /\ v i < U32.v finish}) :
     Stack unit
           (requires (fun h -> inv h (U32.v i)))
           (ensures (fun h0 _ h1 -> U32.(inv h0 (v i) /\ inv h1 (v i + 1)))) =
     hkdf_expand_inner a state prk prklen info infolen n i
   in
-  C.Loops.for 0ul (n +^ 1ul) inv f;
- // if n >^ 0ul then
- //   hkdf_expand_inner a state prk prklen info infolen n 1ul;
+  C.Loops.for 1ul finish inv f;
 
   (* Extract T from the state *)
   let _T = Buffer.sub state pos_T size_T in
