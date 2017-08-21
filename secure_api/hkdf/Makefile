@@ -31,13 +31,10 @@ test-spec-hmac512.exe: Spec.Test.HMAC.SHA2_512.fst
 	-o $@
 	./$@
 
-tmp/out.krml: Crypto.Test.HMAC.fst
+test-hmac.exe: Crypto.Test.HMAC.fst
 	$(KRML) ../test/test_hacl/Crypto.Indexing.fst Crypto.Test.HMAC.fst \
-	  -tmpdir tmp -skip-translation
-
-test-hmac.exe: tmp/out.krml
-	$(KRML) $< -tmpdir tmp -o $@ -no-prefix Crypto.Test.HMAC
-	./$@	
+	 -tmpdir tmp -o $@ -no-prefix Crypto.Test.HMAC
+	./$@
 
 test-hkdf.exe: Crypto.Test.HKDF.fst
 	$(KRML) ../test/test_hacl/Crypto.Indexing.fst Crypto.Test.HKDF.fst \
@@ -50,7 +47,6 @@ test-hmac-ocaml.exe: Crypto.Test.HMAC.fst
 	cp C.ml tmp
 	$(OCAMLOPT) -I tmp -I $(KREMLIN_HOME)/kremlib $(OCAML_INCLUDES) -package fstarlib \
 	tmp/FStar_Endianness.ml \
-	tmp/FStar_Seq.ml \
 	tmp/Crypto_Symmetric_Bytes.ml \
 	tmp/C_Loops.ml \
 	tmp/C.ml \
@@ -69,6 +65,35 @@ test-hmac-ocaml.exe: Crypto.Test.HMAC.fst
 	tmp/Spec_SHA2_512.ml \
 	tmp/Hacl_Hash_SHA2_512.ml \
 	tmp/Crypto_HMAC.ml \
+	tmp/$(subst .,_,$(basename $<)).ml \
+	-o $@
+	./$@
+
+test-hkdf-ocaml.exe: Crypto.Test.HKDF.fst
+	mkdir -p tmp
+	$(FSTAR) --codegen OCaml --lax $(NOEXTRACT) --no_extract C --odir tmp $^
+	cp C.ml tmp
+	$(OCAMLOPT) -I tmp -I $(KREMLIN_HOME)/kremlib $(OCAML_INCLUDES) -package fstarlib \
+	tmp/FStar_Endianness.ml \
+	tmp/Crypto_Symmetric_Bytes.ml \
+	tmp/C_Loops.ml \
+	tmp/C.ml \
+	$(KREMLIN_HOME)/kremlib/TestLib.ml \
+	tmp/Hacl_UInt128.ml \
+	tmp/Hacl_Endianness.ml \
+	tmp/Hacl_Hash_Lib_Create.ml \
+	tmp/Hacl_Hash_Lib_LoadStore.ml \
+	tmp/Spec_Loops.ml \
+	tmp/Spec_Lib.ml \
+	tmp/Seq_Create.ml \
+	tmp/Spec_SHA2_256.ml \
+	tmp/Hacl_Hash_SHA2_256.ml \
+	tmp/Spec_SHA2_384.ml \
+	tmp/Hacl_Hash_SHA2_384.ml \
+	tmp/Spec_SHA2_512.ml \
+	tmp/Hacl_Hash_SHA2_512.ml \
+	tmp/Crypto_HMAC.ml \
+	tmp/Crypto_HKDF.ml \
 	tmp/$(subst .,_,$(basename $<)).ml \
 	-o $@
 	./$@

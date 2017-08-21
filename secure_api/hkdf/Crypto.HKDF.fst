@@ -27,56 +27,75 @@ let uint8_p  = Buffer.buffer uint8_t
 
 type alg = HMAC.alg
 
-#reset-options ""
+#reset-options "--z3rlimit 40 --max_fuel 0 --max_ifuel 0"
 
-(* Define HKDF Extraction function *)
+
+(*
+ * REMARK: RFC 5869 defines the salt value as optional;
+ * if not provided, it is set to a string of `hashsize` zeros.
+ *
+ * Internally, HMAC extends `salt` with zeros to a string of `blocksize` bytes.
+ * For `salt` longer than `blocksize`, the value passed to HMAC
+ * is obtained by hashing `salt` to a string of length `hashlen` (which may
+ * then be expanded to `blocksize`).
+ *
+ * This interface (and the one in HMAC) assumes that the hashing and
+ * extension of `salt` has already been done, so `saltlen` is redundant.
+ *
+ * 2017.08.18: SZ: I chose to kept `saltlen` in case we decide to later
+ * internalize the preprocessing of `salt` to a string of `blocksize` bytes.
+ *)
+(** HKDF-Extract - See https://tools.ietf.org/html/rfc5869#section-2.2 *)
 val hkdf_extract :
   a       : alg ->
   prk     : uint8_p{length prk = v (HMAC.hash_size a)} ->
-  salt    : uint8_p ->
+  salt    : uint8_p{length salt = v (HMAC.block_size a) /\ disjoint salt prk} ->
   saltlen : uint32_t{v saltlen = length salt} ->
-  ikm     : uint8_p ->
+  ikm     : uint8_p{length ikm + v (HMAC.block_size a) < pow2 32
+                    /\ disjoint ikm prk /\ disjoint ikm salt} ->
   ikmlen  : uint32_t{v ikmlen = length ikm} ->
   Stack unit
-        (requires (fun h0 -> live h0 prk /\ live h0 salt /\ live h0 ikm))
-        (ensures  (fun h0 r h1 -> live h1 prk /\ modifies_1 prk h0 h1))
+    (requires (fun h0 -> live h0 prk /\ live h0 salt /\ live h0 ikm))
+    (ensures  (fun h0 r h1 -> live h1 prk /\ modifies_1 prk h0 h1))
 
 let hkdf_extract a prk salt saltlen ikm ikmlen =
   HMAC.hmac a prk salt saltlen ikm ikmlen
 
 
+(** Inner loop of HKDF-Expand *)
 [@"c_inline"]
 private val hkdf_expand_inner:
   a       : alg ->
   state   : uint8_p ->
-  prk     : uint8_p {v (HMAC.hash_size a) <= length prk} ->
+  prk     : uint8_p {length prk = v (HMAC.block_size a) /\ disjoint prk state} ->
   prklen  : uint32_t {v prklen = length prk} ->
   info    : uint8_p ->
   infolen : uint32_t {v infolen = length info} ->
-  n       : uint32_t {v n <= pow2 8}->
+  n       : uint32_t {v n <= pow2 8} ->
   i       : uint32_t {v i <= v n} ->
   StackInline unit
-        (requires (fun h0 -> live h0 state /\ live h0 prk /\ live h0 info))
-        (ensures  (fun h0 r h1 -> live h1 state /\ modifies_1 state h0 h1))
+    (requires (fun h0 -> live h0 state /\ live h0 prk /\ live h0 info
+       /\ v (HMAC.hash_size a +^ HMAC.hash_size a +^ 1ul +^ U32.mul_mod n (HMAC.hash_size a))
+         <= length state))
+    (ensures  (fun h0 r h1 -> live h1 state /\ modifies_1 state h0 h1))
 
-[@"c_inline"]
-let rec hkdf_expand_inner a state prk prklen info infolen n i =
+let hkdf_expand_inner a state prk prklen info infolen n i =
+  let hashsize = HMAC.hash_size a in
   (* Recompute the sizes and position of the intermediary objects *)
   (* Note: here we favour readability over efficiency *)
-  let size_Ti  = HMAC.hash_size a in
-  let size_Til = size_Ti +^ infolen +^ 1ul in
-  let size_T = U32.mul_mod n size_Ti in
+  let size_T   = U32.mul_mod n hashsize in
+  let size_Til = hashsize +^ infolen +^ 1ul in
+  let pos_T    = hashsize +^ size_Til in
 
-  let pos_Ti = 0ul in
-  let pos_Til = size_Ti in
-  let pos_T = pos_Til +^ size_Til in
+  (*
+   * Retreive the memory for local computations.
+   * state =  T(i-1) | info | i-1 | T
+   *)
+  let ti  = Buffer.sub state 0ul hashsize in      // T(i-1)
+  let til = Buffer.sub state hashsize size_Til in // T(i-1) | info | i-1
+  let t   = Buffer.sub state pos_T size_T in      // T(1) | ... | T(i-1)
 
-  (* Retreive the memory for local computations. state =  Ti | Til | T *)
-  let ti = Buffer.sub state pos_Ti size_Ti in
-  let til = Buffer.sub state pos_Til size_Til in
-  let t = Buffer.sub state pos_T size_T in
-
-  if (i =^ 1ul) then
+  if i =^ 1ul then
     begin
     Buffer.blit info 0ul til 0ul infolen;
     Buffer.upd til infolen (Int.Cast.uint32_to_uint8 i);
@@ -85,29 +104,25 @@ let rec hkdf_expand_inner a state prk prklen info infolen n i =
     HMAC.hmac a ti prk prklen til (infolen +^ 1ul);
 
     (* Store the resulting block in T *)
-    Buffer.blit ti 0ul t 0ul size_Ti
-//    (* Recursive call *)
-//    hkdf_expand_inner a state prk prklen info infolen n (i +^ 1ul)
+    Buffer.blit ti 0ul t 0ul hashsize
     end
-  else if (i <=^ n) then
+  else
     begin
-    (* Concatenate T(i-1) | Info | i *)
-    Buffer.blit ti 0ul til 0ul size_Ti;
-    Buffer.blit info 0ul til size_Ti infolen;
-    Buffer.upd til (size_Til -^ 1ul) (Int.Cast.uint32_to_uint8 i);
+    (* Concatenate T(i-1) | info | i *)
+    Buffer.blit ti 0ul til 0ul hashsize;
+    Buffer.blit info 0ul til hashsize infolen; // Get rid of this
+    Buffer.upd til (hashsize +^ infolen) (Int.Cast.uint32_to_uint8 i);
 
-    (* Compute the mac of to get block Ti *)
-    HMAC.hmac a ti prk prklen til size_Til;
+    (* Compute the mac of to get block T(i) *)
+    HMAC.hmac a ti prk prklen til (hashsize +^ infolen +^ 1ul);
 
     (* Store the resulting block in T *)
-    let pos = U32.mul_mod (i -^ 1ul) size_Ti in
-    Buffer.blit ti 0ul t pos size_Ti
-//    (* Recursive call *)
-//    hkdf_expand_inner a state prk prklen info infolen n (i +^ 1ul)
+    let pos = U32.mul_mod (i -^ 1ul) hashsize in // pos +=hashsize
+    Buffer.blit ti 0ul t pos hashsize
     end
 
 
-(* Define HKDF Expand function *)
+(** HKDF-Expand - See https://tools.ietf.org/html/rfc5869#section-2.3 *)
 val hkdf_expand :
   a       : alg ->
   okm     : uint8_p ->
@@ -119,35 +134,33 @@ val hkdf_expand :
                     /\ v len <= (255 * U32.v (HMAC.hash_size a))
                     /\ (U32.v len / U32.v (HMAC.hash_size a) + 1) <= length okm} ->
   Stack unit
-        (requires (fun h0 -> live h0 okm /\ live h0 prk /\ live h0 info))
-        (ensures  (fun h0 r h1 -> live h1 okm /\ modifies_1 okm h0 h1))
+    (requires (fun h0 -> live h0 okm /\ live h0 prk /\ live h0 info))
+   (ensures  (fun h0 r h1 -> live h1 okm /\ modifies_1 okm h0 h1))
 
 let hkdf_expand a okm prk prklen info infolen len =
   push_frame ();
+  let hashsize = HMAC.hash_size a in
 
   (* Compute the number of blocks necessary to compute the output *)
-  let size_Ti = HMAC.hash_size a in
-  // ceil
-  let n_0 = if U32.(rem len size_Ti) = 0ul then 0ul else 1ul in
-  let n = U32.(div len size_Ti) +^ n_0 in
-  (* Describe the shape of memory used by the inner recursive function *)
-  let size_T = U32.mul_mod n size_Ti in
-  let size_Til = size_Ti +^ infolen +^ 1ul in
+  // n = ceil(len / hashsize)
+  let n_0 = if U32.(rem len hashsize) = 0ul then 0ul else 1ul in
+  let n = U32.(div len hashsize) +^ n_0 in
 
-  let pos_Ti = 0ul in
-  let pos_Til = size_Ti in
-  let pos_T = pos_Til +^ size_Til in
+  (* Describe the shape of memory used by the inner loop *)
+  let size_Til = hashsize +^ infolen +^ 1ul in
+  let pos_T    = hashsize +^ size_Til in
+  let size_T   = U32.mul_mod n hashsize in
 
-  (* Allocate memory for inner expension: state =  Ti | Til | T *)
-  let state = Buffer.create 0uy (size_Ti +^ size_Til +^ size_T) in
+  (* Allocate memory for inner expension: state =  T(i) | (T(i) | info | i) | T *)
+  let state = Buffer.create 0uy (hashsize +^ size_Til +^ size_T) in
 
   (* Call the inner expension function *)
   let inv (h:mem) (i:nat) : Type0 = True in
   let finish = n +^ 1ul in
   let f (i:uint32_t{0 <= U32.v i /\ v i < U32.v finish}) :
     Stack unit
-          (requires (fun h -> inv h (U32.v i)))
-          (ensures (fun h0 _ h1 -> U32.(inv h0 (v i) /\ inv h1 (v i + 1)))) =
+      (requires (fun h -> inv h (U32.v i)))
+      (ensures (fun h0 _ h1 -> U32.(inv h0 (v i) /\ inv h1 (v i + 1)))) =
     hkdf_expand_inner a state prk prklen info infolen n i
   in
   C.Loops.for 1ul finish inv f;
@@ -155,7 +168,7 @@ let hkdf_expand a okm prk prklen info infolen len =
   (* Extract T from the state *)
   let _T = Buffer.sub state pos_T size_T in
 
-  (* Redundant copy the desired part of T *)
+  (* Copy the desired part of T to okm *)
   Buffer.blit _T 0ul okm 0ul len;
 
   pop_frame()
