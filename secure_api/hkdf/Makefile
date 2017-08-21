@@ -7,7 +7,7 @@ include $(FSTAR_HOME)/src/gmake/z3.mk
 include $(FSTAR_HOME)/src/gmake/fstar.mk
 include $(FSTAR_HOME)/ulib/ml/Makefile.include
 
-KRML_ARGS=$(FPIC) -ccopt -maes -fnouint128 \
+KRML_ARGS=$(FPIC) -ccopt -maes \
   $(KREMLIN_HOME)/test/../kremlib/testlib.c \
   -drop Hacl.Spe.*,Spec,Hacl.Spec,Spec.*,Hacl.Spec.* \
   -add-include '"testlib.h"' -bundle "Hacl.*" $(KOPTS)
@@ -41,7 +41,7 @@ test-hmac.exe: tmp/out.krml
 
 test-hmac-ocaml.exe: Crypto.Test.HMAC.fst
 	mkdir -p tmp
-#	$(FSTAR) --codegen OCaml --lax $(NOEXTRACT) --no_extract C --odir tmp $^
+	$(FSTAR) --codegen OCaml --lax $(NOEXTRACT) --no_extract C --odir tmp $^
 	cp C.ml tmp
 	$(OCAMLOPT) -I tmp -I $(KREMLIN_HOME)/kremlib $(OCAML_INCLUDES) -package fstarlib \
 	tmp/FStar_Endianness.ml \
@@ -67,7 +67,3 @@ test-hmac-ocaml.exe: Crypto.Test.HMAC.fst
 	tmp/$(subst .,_,$(basename $<)).ml \
 	-o $@
 	./$@
-
-clean:
-	rm -rf tmp *.exe *.dSYM
-

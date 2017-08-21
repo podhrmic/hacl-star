@@ -1,6 +1,7 @@
 module Crypto.HKDF
 
 module ST = FStar.HyperStack.ST
+
 open FStar.HyperStack.All
 
 open FStar.Mul
@@ -20,13 +21,14 @@ module HMAC = Crypto.HMAC
 let uint8_t   = FStar.UInt8.t
 let uint32_t  = FStar.UInt32.t
 let uint64_t  = FStar.UInt64.t
+
 let uint32_p = Buffer.buffer uint32_t
 let uint8_p  = Buffer.buffer uint8_t
 
 type alg = HMAC.alg
 
-// ADL July 4
-#set-options "--lax"
+#reset-options ""
+
 (* Define HKDF Extraction function *)
 val hkdf_extract :
   a       : alg ->
@@ -59,10 +61,7 @@ private val hkdf_expand_inner:
 
 [@"c_inline"]
 let rec hkdf_expand_inner a state prk prklen info infolen n i =
-
-  (* Push a new memory frame *)
-  (**) push_frame();
-
+  push_frame();
   (* Recompute the sizes and position of the intermediary objects *)
   (* Note: here we favour readability over efficiency *)
   let size_Ti  = HMAC.hash_size a in
@@ -78,8 +77,8 @@ let rec hkdf_expand_inner a state prk prklen info infolen n i =
   let til = Buffer.sub state pos_Til size_Til in
   let t = Buffer.sub state pos_T size_T in
 
-  if (i =^ 1ul) then begin
-
+  if (i =^ 1ul) then
+    begin
     Buffer.blit info 0ul til 0ul infolen;
     Buffer.upd til infolen (Int.Cast.uint32_to_uint8 i);
 
@@ -90,10 +89,10 @@ let rec hkdf_expand_inner a state prk prklen info infolen n i =
     Buffer.blit ti 0ul t 0ul size_Ti;
 
     (* Recursive call *)
-    hkdf_expand_inner a state prk prklen info infolen n (i +^ 1ul) end
-
-  else if (i <=^ n) then begin
-
+    hkdf_expand_inner a state prk prklen info infolen n (i +^ 1ul)
+    end
+  else if (i <=^ n) then
+    begin
     (* Concatenate T(i-1) | Info | i *)
     Buffer.blit ti 0ul til 0ul size_Ti;
     Buffer.blit info 0ul til size_Ti infolen;
@@ -107,11 +106,10 @@ let rec hkdf_expand_inner a state prk prklen info infolen n i =
     Buffer.blit ti 0ul t pos size_Ti;
 
     (* Recursive call *)
-    hkdf_expand_inner a state prk prklen info infolen n (i +^ 1ul) end
-  else ();
+    hkdf_expand_inner a state prk prklen info infolen n (i +^ 1ul)
+    end;
+  pop_frame()
 
-  (* Pop the memory frame *)
-  (**) pop_frame()
 
 (* Define HKDF Expand function *)
 val hkdf_expand :
@@ -129,16 +127,13 @@ val hkdf_expand :
         (ensures  (fun h0 r h1 -> live h1 okm /\ modifies_1 okm h0 h1))
 
 let hkdf_expand a okm prk prklen info infolen len =
-
-  (* Push a new memory frame *)
-  (**) push_frame ();
+  push_frame ();
 
   (* Compute the number of blocks necessary to compute the output *)
   let size_Ti = HMAC.hash_size a in
   // ceil
   let n_0 = if U32.(rem len size_Ti) = 0ul then 0ul else 1ul in
   let n = U32.(div len size_Ti) +^ n_0 in
-
   (* Describe the shape of memory used by the inner recursive function *)
   let size_T = U32.mul_mod n size_Ti in
   let size_Til = size_Ti +^ infolen +^ 1ul in
@@ -151,8 +146,16 @@ let hkdf_expand a okm prk prklen info infolen len =
   let state = Buffer.create 0uy (size_Ti +^ size_Til +^ size_T) in
 
   (* Call the inner expension function *)
-  if n >^ 0ul then
-    hkdf_expand_inner a state prk prklen info infolen n 1ul;
+  let inv (h:mem) (i:nat) : Type0 = True in
+  let f (i:uint32_t{0 <= U32.v i /\ v i < U32.v n}) :
+    Stack unit
+          (requires (fun h -> inv h (U32.v i)))
+          (ensures (fun h0 _ h1 -> U32.(inv h0 (v i) /\ inv h1 (v i + 1)))) =
+    hkdf_expand_inner a state prk prklen info infolen n i
+  in
+  C.Loops.for 0ul (n +^ 1ul) inv f;
+ // if n >^ 0ul then
+ //   hkdf_expand_inner a state prk prklen info infolen n 1ul;
 
   (* Extract T from the state *)
   let _T = Buffer.sub state pos_T size_T in
@@ -160,5 +163,4 @@ let hkdf_expand a okm prk prklen info infolen len =
   (* Redundant copy the desired part of T *)
   Buffer.blit _T 0ul okm 0ul len;
 
-  (* Pop the memory frame *)
-  (**) pop_frame()
+  pop_frame()
