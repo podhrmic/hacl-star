@@ -321,6 +321,30 @@ let rec load_big32 len buf =
     let n' = n in (* n defined in FStar.UInt32, so was shadowed, so renamed into n' *)
     FStar.UInt32.(uint8_to_uint32 b +^ 256ul *^ n')
 
+
+val load_uint64: len:UInt32.t { v len <= 8 } -> buf:lbuffer (v len) -> ST UInt64.t
+  (requires (fun h0 -> live h0 buf))
+  (ensures (fun h0 n h1 ->
+    h0 == h1 /\ live h0 buf /\
+    UInt64.v n == little_endian (sel_bytes h1 len buf)))
+let rec load_uint64 len buf =
+  if len = 0ul then 0UL
+  else
+    let h = ST.get () in
+    let len = len -^ 1ul in
+    let m = load_uint64 len (sub buf 1ul len) in
+    lemma_little_endian_is_bounded (sel_bytes h len (sub buf 1ul len));
+    assert (UInt32.v len <= 7);
+    assert (UInt64.v m < pow2 (8 * (UInt32.v len)));
+    FStar.Math.Lemmas.pow2_le_compat (8 * 7) (8 * (UInt32.v len));
+    FStar.Math.Lemmas.pow2_plus 8 (8 * 7);
+    assert (pow2 (8 * (UInt32.v len)) <= pow2 (8 * 7));
+    assert (pow2 8 * pow2 (8 * 7) = UInt.max_int 64 + 1);
+    assert (UInt64.v m * pow2 8 <= UInt.max_int 64);
+    let b = buf.(0ul) in
+    assert_norm (pow2 8 == 256);
+    FStar.UInt64.(uint8_to_uint64 b +^ 256UL *^ m)
+
 (** Used e.g. for converting TLS sequence numbers into AEAD nonces *)
 #reset-options "--z3rlimit 100"
 val load_big64: len:UInt32.t { v len <= 8 } -> buf:lbuffer (v len) -> ST UInt64.t
@@ -530,7 +554,7 @@ let rec big_bytes len n =
 // check efficient compilation for all back-ends
 val store_uint128:
   len:UInt32.t {v len <= 16} -> buf:lbuffer (v len) ->
-  n:UInt128.t {UInt128.v n < pow2 (8 * v len)} -> Stack unit
+  n:UInt128.t {UInt128.v n < pow2 (8 * v len)} -> StackInline unit
   (requires (fun h0 -> Buffer.live h0 buf))
   (ensures (fun h0 r h1 ->
     Buffer.live h1 buf /\ Buffer.modifies_1 buf h0 h1 /\
@@ -550,7 +574,7 @@ let rec store_uint128 len buf n =
 
 val store_big128:
   len:UInt32.t {v len <= 16} -> buf:lbuffer (v len) ->
-  n:UInt128.t {UInt128.v n < pow2 (8 * v len)} -> Stack unit
+  n:UInt128.t {UInt128.v n < pow2 (8 * v len)} -> StackInline unit
   (requires (fun h0 -> Buffer.live h0 buf))
   (ensures (fun h0 r h1 ->
     Buffer.live h1 buf /\ Buffer.modifies_1 buf h0 h1 /\
@@ -567,6 +591,49 @@ let rec store_big128 len buf n =
     assert_norm (pow2 8 == 256);
     store_big128 len buf' n';
     buf.(len) <- b // updating after the recursive call helps verification
+
+
+// check efficient compilation for all back-ends
+val store_uint64:
+  len:UInt32.t {v len <= 8} -> buf:lbuffer (v len) ->
+  n:UInt64.t {UInt64.v n < pow2 (8 * v len)} -> StackInline unit
+  (requires (fun h0 -> Buffer.live h0 buf))
+  (ensures (fun h0 r h1 ->
+    Buffer.live h1 buf /\ Buffer.modifies_1 buf h0 h1 /\
+    UInt64.v n == little_endian (sel_bytes h1 len buf)))
+let rec store_uint64 len buf n =
+  if len <> 0ul then
+    let len = len -^ 1ul in
+    let b = uint64_to_uint8 n in
+    let n1 = n in (* n defined in FStar.UInt64, so was shadowed, so renamed into n1 *)
+    let n' = FStar.UInt64.(n1 >>^ 8ul) in
+    assert(UInt64.v n = UInt8.v b + 256 * UInt64.v n');
+    let buf' = Buffer.sub buf 1ul len in
+    Math.Lemmas.pow2_plus 8 (8 * v len);
+    assert_norm (pow2 8 == 256);
+    store_uint64 len buf' n';
+    buf.(0ul) <- b // updating after the recursive call helps verification
+
+val store_big64:
+  len:UInt32.t {v len <= 8} -> buf:lbuffer (v len) ->
+  n:UInt64.t {UInt64.v n < pow2 (8 * v len)} -> StackInline unit
+  (requires (fun h0 -> Buffer.live h0 buf))
+  (ensures (fun h0 r h1 ->
+    Buffer.live h1 buf /\ Buffer.modifies_1 buf h0 h1 /\
+    UInt64.v n == big_endian (sel_bytes h1 len buf)))
+let rec store_big64 len buf n =
+  if len <> 0ul then
+    let len = len -^ 1ul in
+    let b = uint64_to_uint8 n in
+    let n1 = n in (* n defined in FStar.UInt64, so was shadowed, so renamed into n1 *)
+    let n' = FStar.UInt64.(n1 >>^ 8ul) in
+    assert(UInt64.v n = UInt8.v b + 256 * UInt64.v n');
+    let buf' = Buffer.sub buf 0ul len in
+    Math.Lemmas.pow2_plus 8 (8 * v len);
+    assert_norm (pow2 8 == 256);
+    store_big64 len buf' n';
+    buf.(len) <- b // updating after the recursive call helps verification
+
 
 (* from Spec; used e.g. in AEAD.Encoding *)
 
