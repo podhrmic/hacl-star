@@ -19,7 +19,6 @@ all-ver: verify
 all-ci: verify
 all-hints: hints
 
-
 KREMLIN_ARGS+=-verbose \
 	-drop Prims,Hacl.Cast,Hacl.UInt8,Hacl.UInt16,Hacl.UInt32,Hacl.UInt64,Hacl.UInt128 \
 	-drop Hacl.Spec.Endianness,Hacl.Endianness,Seq.Create,Spec.* \
@@ -40,13 +39,14 @@ sha2-c/out.krml: $(SHA2_FILES) $(addsuffix .fst,$(MODULES)) $(addsuffix .fst,$(T
 
 sha2-c/SHA2_%.c: sha2-c/out.krml
 	$(KREMLIN) $(KREMLIN_ARGS) -tmpdir sha2-c -skip-compilation \
-	-drop $(subst $(SPACE),,$(filter-out Hacl.Hash.SHA2_$*,$(filter-out SHA2_$*,$(MODULES)))) \
-	-bundle "SHA2_$*=Hacl.Hash.Lib.Create,Hacl.Hash.Lib.LoadStore,Hacl.Hash.SHA2_$*,SHA2_$*" \
-	$^ -o $@
+	 -drop $(subst $(SPACE),$(COMMA),$(filter-out Hacl.Hash.SHA2_$*,$(filter-out SHA2_$*,$(MODULES)))) \
+	-drop $(subst $(SPACE),$(COMMA),$(TESTMODS)) \
+	 -bundle "SHA2_$*=Hacl.Hash.Lib.Create,Hacl.Hash.Lib.LoadStore,Hacl.Hash.SHA2_$*,SHA2_$*" \
+	 $^ -o $@
 
 sha2-c/Hacl_Test_SHA2_%.c: sha2-c/out.krml
 	$(KREMLIN) $(KREMLIN_ARGS) -tmpdir sha2-c -skip-compilation -no-prefix Hacl.Test.SHA2_$* \
-	-drop $(subst $(SPACE),,$(filter-out Hacl.Hash.SHA2_$*,$(filter-out SHA2_$*,$(MODULES)))) \
+	-drop $(subst $(SPACE),$(COMMA),$(filter-out Hacl.Hash.SHA2_$*,$(filter-out SHA2_$*,$(MODULES)))) \
 	-drop $(subst $(SPACE),$(COMMA),$(filter-out Hacl.Test.SHA2_$*,$(TESTMODS))) \
 	-bundle "SHA2_$*=Hacl.Hash.Lib.Create,Hacl.Hash.Lib.LoadStore,Hacl.Hash.SHA2_$*,SHA2_$*" \
 	$^ -o $@
@@ -81,11 +81,6 @@ test-native-sha2_384.exe: sha2-c/SHA2_384.o sha2-c/Hacl_Test_SHA2_384.o $(BASE_O
 test-native-sha2_512.exe: sha2-c/SHA2_512.o sha2-c/Hacl_Test_SHA2_512.o $(BASE_OBJ)
 	$(CC) $(CFLAGS) -o $@ $^
 
-%.fst-in:
-	@echo --hint_info \
-	$(HINTS_ENABLED) \
-	$(OTHERFLAGS) --include ../lib \
-	$(FSTAR_INCLUDES)
 
 clean:
 	rm -rf *~ *.exe *.exe.dSYM
