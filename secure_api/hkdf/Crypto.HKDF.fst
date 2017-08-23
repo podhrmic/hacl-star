@@ -63,7 +63,6 @@ let hkdf_extract a prk salt saltlen ikm ikmlen =
 
 
 (** Inner loop of HKDF-Expand *)
-[@"c_inline"]
 private val hkdf_expand_inner:
   a       : alg ->
   state   : uint8_p ->
@@ -79,45 +78,46 @@ private val hkdf_expand_inner:
          <= length state))
     (ensures  (fun h0 r h1 -> live h1 state /\ modifies_1 state h0 h1))
 
+[@"c_inline"]
 let hkdf_expand_inner a state prk prklen info infolen n i =
   let hashsize = HMAC.hash_size a in
-  (* Recompute the sizes and position of the intermediary objects *)
-  (* Note: here we favour readability over efficiency *)
-  let size_T   = U32.mul_mod n hashsize in
+
+  (* Recompute sizes and position of state components *)
   let size_Til = hashsize +^ infolen +^ 1ul in
   let pos_T    = hashsize +^ size_Til in
+  let size_T   = U32.mul_mod n hashsize in
 
-  (*
-   * Retreive the memory for local computations.
-   * state =  T(i-1) | info | i-1 | T
-   *)
+  (* Retrieve state components; state = T(i-1) | info | i-1 | T *)
+  // TODO: Remove one of the three copies of T(i-1)
   let ti  = Buffer.sub state 0ul hashsize in      // T(i-1)
   let til = Buffer.sub state hashsize size_Til in // T(i-1) | info | i-1
   let t   = Buffer.sub state pos_T size_T in      // T(1) | ... | T(i-1)
 
-  if i =^ 1ul then
+  if i =^ 0ul then
     begin
-    Buffer.blit info 0ul til 0ul infolen;
-    Buffer.upd til infolen (Int.Cast.uint32_to_uint8 i);
+    (* til <- info | 1 *)
+    Buffer.blit info 0ul til hashsize infolen;
+    Buffer.upd til (hashsize +^ infolen) 1uy;
+    let til = Buffer.sub til hashsize (infolen +^ 1ul) in
 
-    (* Compute the mac of to get block Ti *)
+    (* Compute the mac of to get block T(i) *)
     HMAC.hmac a ti prk prklen til (infolen +^ 1ul);
 
     (* Store the resulting block in T *)
-    Buffer.blit ti 0ul t 0ul hashsize
+    Buffer.blit ti 0ul t 0ul hashsize // pos = 0
     end
   else
     begin
-    (* Concatenate T(i-1) | info | i *)
+    (* til <- T(i-1) | info | i *)
     Buffer.blit ti 0ul til 0ul hashsize;
-    Buffer.blit info 0ul til hashsize infolen; // Get rid of this
-    Buffer.upd til (hashsize +^ infolen) (Int.Cast.uint32_to_uint8 i);
+    // Buffer.blit info 0ul til hashsize infolen; // Done in the first iteration
+    Buffer.upd til (hashsize +^ infolen) (Int.Cast.uint32_to_uint8 (i +^ 1ul));
 
     (* Compute the mac of to get block T(i) *)
     HMAC.hmac a ti prk prklen til (hashsize +^ infolen +^ 1ul);
 
     (* Store the resulting block in T *)
-    let pos = U32.mul_mod (i -^ 1ul) hashsize in // pos +=hashsize
+    let pos = U32.mul_mod i hashsize in // pos +=hashsize
     Buffer.blit ti 0ul t pos hashsize
     end
 
@@ -135,7 +135,7 @@ val hkdf_expand :
                     /\ (U32.v len / U32.v (HMAC.hash_size a) + 1) <= length okm} ->
   Stack unit
     (requires (fun h0 -> live h0 okm /\ live h0 prk /\ live h0 info))
-   (ensures  (fun h0 r h1 -> live h1 okm /\ modifies_1 okm h0 h1))
+    (ensures  (fun h0 r h1 -> live h1 okm /\ modifies_1 okm h0 h1))
 
 let hkdf_expand a okm prk prklen info infolen len =
   push_frame ();
@@ -145,6 +145,7 @@ let hkdf_expand a okm prk prklen info infolen len =
   // n = ceil(len / hashsize)
   let n_0 = if U32.(rem len hashsize) = 0ul then 0ul else 1ul in
   let n = U32.(div len hashsize) +^ n_0 in
+  let n = U32.(div (len +^ hashsize -^ 1ul) hashsize) in
 
   (* Describe the shape of memory used by the inner loop *)
   let size_Til = hashsize +^ infolen +^ 1ul in
@@ -156,14 +157,7 @@ let hkdf_expand a okm prk prklen info infolen len =
 
   (* Call the inner expension function *)
   let inv (h:mem) (i:nat) : Type0 = True in
-  let finish = n +^ 1ul in
-  let f (i:uint32_t{0 <= U32.v i /\ v i < U32.v finish}) :
-    Stack unit
-      (requires (fun h -> inv h (U32.v i)))
-      (ensures (fun h0 _ h1 -> U32.(inv h0 (v i) /\ inv h1 (v i + 1)))) =
-    hkdf_expand_inner a state prk prklen info infolen n i
-  in
-  C.Loops.for 1ul finish inv f;
+  C.Loops.for 0ul n inv (fun i -> hkdf_expand_inner a state prk prklen info infolen n i);
 
   (* Extract T from the state *)
   let _T = Buffer.sub state pos_T size_T in

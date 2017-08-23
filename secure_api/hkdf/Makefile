@@ -97,3 +97,15 @@ test-hkdf-ocaml.exe: Crypto.Test.HKDF.fst
 	tmp/$(subst .,_,$(basename $<)).ml \
 	-o $@
 	./$@
+
+CCOPTS=-Ofast -march=native -mtune=native -m64 -fwrapv -fomit-frame-pointer -funroll-loops \
+-I $(KREMLIN_HOME)/kremlib -I $(HACL_HOME)/test/c -I tmp \
+-Wno-bitwise-op-parentheses -Wno-shift-op-parentheses
+
+test-hkdf-perf.exe: test-hkdf-perf.c Crypto.HKDF.fst 
+	$(CC) $(CCOPTS) -o $(subst .,_,$(basename $<)).exe \
+	$(HACL_HOME)/test/c/hacl_test_utils.c \
+	$(KREMLIN_HOME)/kremlib/kremlib.c \
+	$(KREMLIN_HOME)/kremlib/testlib.c \
+	tmp/FStar.c tmp/Hacl.c tmp/Crypto_HMAC.c tmp/Crypto_HKDF.c $<
+	./$@
