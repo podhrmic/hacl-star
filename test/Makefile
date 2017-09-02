@@ -23,7 +23,7 @@ CC_BASE = $(CC) $(CFLAGS) -I $(HACL_HOME)/$(SNAPSHOT_DIR) -I ./c $(ADDITIONAL_FI
 PERF_LIBS=$(OPENSSL_HOME)/libcrypto.a -lsodium -lpthread -ldl
 
 CCOMP?=ccomp
-FSTARH_CCOMP=$(HACL_HOME)/snapshots/snapshot-ccomp/FStar.c
+FSTARH_CCOMP=$(HACL_HOME)/snapshots/hacl-c-ccomp/FStar.c
 CCOMP_OPTS=-O3 -DKRML_NOUINT128 -DKRML_NOSTRUCT_PASSING -finline-asm -D_BSD_SOURCE -D_DEFAULT_SOURCE
 
 #
@@ -96,7 +96,7 @@ test-pneutube:
 unit-tests:
 	$(MAKE) -C $(HACL_HOME)/$(SNAPSHOT_DIR) libnacl.so
 	cp $(HACL_HOME)/$(SNAPSHOT_DIR)/libnacl.so .
-ifeq ($(SNAPSHOT_DIR),snapshots/snapshot-ccomp)
+ifeq ($(SNAPSHOT_DIR),snapshots/hacl-c-ccomp)
 	$(CCOMP) $(CCOMP_OPTS) $(FSTARH_CCOMP) \
 		-I $(HACL_HOME)/$(SNAPSHOT_DIR) -I $(HACL_HOME)/snapshots/c -I c/ -I $(TWEETNACL_HOME) \
 		$(TWEETNACL_HOME)/tweetnacl.c c/hacl_test_utils.c c/unit_tests.c \
@@ -114,7 +114,7 @@ endif
 unit-tests-32:
 	$(MAKE) -C $(HACL_HOME)/$(SNAPSHOT_DIR) libnacl32.so
 	cp $(HACL_HOME)/$(SNAPSHOT_DIR)/libnacl32.so .
-ifeq ($(SNAPSHOT_DIR),snapshots/snapshot-ccomp)
+ifeq ($(SNAPSHOT_DIR),snapshots/hacl-c-ccomp)
 	$(CCOMP) $(CCOMP_OPTS) $(FSTARH_CCOMP) \
 		-I $(HACL_HOME)/$(SNAPSHOT_DIR) -I ../snapshots/c -I c/ -I $(TWEETNACL_HOME) \
 		$(TWEETNACL_HOME)/tweetnacl.c c/hacl_test_utils.c c/unit_tests.c \
@@ -137,8 +137,8 @@ unit-tests-gcc:
 unit-tests-gcc-unrolled:
 	$(MAKE) unit-tests SNAPSHOT_DIR=snapshots/snapshot-gcc-unrolled
 
-unit-tests-ccomp:
-	$(MAKE) unit-tests CC=$(CCOMP) CCOPTS="$(CCOMP_OPTS)" ADDITIONAL_FILES=$(FSTARH_CCOMP) SNAPSHOT_DIR=snapshots/snapshot-ccomp
+unit-tests-hacl-c-ccomp:
+	$(MAKE) unit-tests CC=$(CCOMP) CCOPTS="$(CCOMP_OPTS)" ADDITIONAL_FILES=$(FSTARH_CCOMP) SNAPSHOT_DIR=snapshots/hacl-c-ccomp
 
 # # FIXME: setup tests for MSVC
 # unit-tests-msvc:
@@ -149,7 +149,7 @@ all-unit-tests:
 	$(MAKE) unit-tests-gcc
 	$(MAKE) unit-tests-gcc-unrolled
 	# JK: FIXME, run unit-tests from CompCert
-	# $(MAKE) unit-tests-ccomp
+	# $(MAKE) unit-tests-hacl-c-ccomp
 	# $(MAKE) unit-tests-msvc
 
 
@@ -163,7 +163,7 @@ unit-tests-32-gcc-unrolled:
 	$(MAKE) unit-tests-32 SNAPSHOT_DIR=snapshots/snapshot-gcc-unrolled
 
 unit-tests-32-ccomp:
-	$(MAKE) unit-tests-32 CC=$(CCOMP) CCOPTS="$(CCOMP_OPTS)" ADDITIONAL_FILES=$(FSTARH_CCOMP) SNAPSHOT_DIR=snapshots/snapshot-ccomp
+	$(MAKE) unit-tests-32 CC=$(CCOMP) CCOPTS="$(CCOMP_OPTS)" ADDITIONAL_FILES=$(FSTARH_CCOMP) SNAPSHOT_DIR=snapshots/hacl-c-ccomp
 
 # # FIXME: setup tests for MSVC
 # unit-tests-32-msvc:
@@ -192,7 +192,7 @@ test-all-%: .snapshot-all
 	@rm test-$*.exe
 	$(MAKE) CC="$(GCC) $(GCC_OPTS)" SNAPSHOT_DIR="snapshots/snapshot-gcc-unrolled" test-$*.exe && ./test-$*.exe
 	@rm test-$*.exe
-	$(MAKE) CC="ccomp" CCOPTS="$(CCOMP_OPTS)" ADDITIONAL_FILES=$(FSTARH_CCOMP) SNAPSHOT_DIR="snapshots/snapshot-ccomp" test-$*.exe && ./test-$*.exe
+	$(MAKE) CC="ccomp" CCOPTS="$(CCOMP_OPTS)" ADDITIONAL_FILES=$(FSTARH_CCOMP) SNAPSHOT_DIR="snapshots/hacl-c-ccomp" test-$*.exe && ./test-$*.exe
 	@rm test-$*.exe
 #	$(MAKE) CC="$(MSVC) $(MSVC_OPTS)" SNAPSHOT_DIR="snapshots/snapshot-msvc" test-poly.exe; ./test-$*.exe
 
@@ -438,9 +438,9 @@ clean:
 # 	$(MAKE) -C .. snapshots/snapshot-hacl
 # 	$(MAKE) -C ../snapshots/snapshot-hacl CC="$(GCC) $(GCC_OPTS)" test
 
-# test-snapshot-ccomp:
-# 	$(MAKE) -C .. snapshots/snapshot-ccomp
-# 	$(MAKE) -C ../snapshots/snapshot-ccomp CC=ccomp CCOPTS="-O3 -DKRML_NOUINT128 -DKRML_NOSTRUCT_PASSING -finline-asm -D_BSD_SOURCE -D_DEFAULT_SOURCE" test
+# test-hacl-c-ccomp:
+# 	$(MAKE) -C .. snapshots/hacl-c-ccomp
+# 	$(MAKE) -C ../snapshots/hacl-c-ccomp CC=ccomp CCOPTS="-O3 -DKRML_NOUINT128 -DKRML_NOSTRUCT_PASSING -finline-asm -D_BSD_SOURCE -D_DEFAULT_SOURCE" test
 
 # test-snapshot-gcc:
 # 	$(MAKE) -C .. snapshots/snapshot-gcc
@@ -455,10 +455,10 @@ clean:
 #
 
 # echo-perf-ccomp:
-# 	$(shell (echo -e "Benchmarking results with ccomp -O3 -DKRML_NOUINT128 -DKRML_NOSTRUCT_PASSING -finline-asm -D_BSD_SOURCE -D_DEFAULT_SOURCE\n\nAlgorithm       HACL(cy/b)      LibSodium(cy/b) OpenSSL(cy/b)   TweetNaCl(cy/b) HACL(us/b)      LibSodium(us/b) OpenSSL(us/b)   TweetNaCl(us/b) \n"; cat $(HACL_HOME)/snapshot-ccomp/bench.txt) > benchmark-compcert.txt)
+# 	$(shell (echo -e "Benchmarking results with ccomp -O3 -DKRML_NOUINT128 -DKRML_NOSTRUCT_PASSING -finline-asm -D_BSD_SOURCE -D_DEFAULT_SOURCE\n\nAlgorithm       HACL(cy/b)      LibSodium(cy/b) OpenSSL(cy/b)   TweetNaCl(cy/b) HACL(us/b)      LibSodium(us/b) OpenSSL(us/b)   TweetNaCl(us/b) \n"; cat $(HACL_HOME)/hacl-c-ccomp/bench.txt) > benchmark-compcert.txt)
 
 # perf-ccomp:
-# 	-$(MAKE) -B -C $(HACL_HOME)/snapshots/snapshot-ccomp CC=ccomp CCOPTS="-O3 -DKRML_NOUINT128 -DKRML_NOSTRUCT_PASSING -finline-asm -D_BSD_SOURCE -D_DEFAULT_SOURCE" perf
+# 	-$(MAKE) -B -C $(HACL_HOME)/snapshots/hacl-c-ccomp CC=ccomp CCOPTS="-O3 -DKRML_NOUINT128 -DKRML_NOSTRUCT_PASSING -finline-asm -D_BSD_SOURCE -D_DEFAULT_SOURCE" perf
 # 	$(MAKE) -B echo-perf-ccomp
 
 # echo-perf-gcc:
